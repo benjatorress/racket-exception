@@ -1,6 +1,15 @@
 #lang racket
 
+;; =========================
+;; Excepciones personalizadas
+;; =========================
+(struct exn:producto-no-existe exn:fail ())
+(struct exn:pago-insuficiente exn:fail (faltante))
+(struct exn:entrada-invalida exn:fail ())
 
+;; =========================
+;; Datos
+;; =========================
 (define productos
   '((1 "Gatorade" 2000)
     (2 "Plushie Eric Ross" 4000)
@@ -11,6 +20,9 @@
     (7 "Polera Poser Meteora LP (Lenguajes de Programación)" 7000)
     (8 "Jugo Soprole Durazno" 800)))
 
+;; =========================
+;; Funciones
+;; =========================
 (define (mostrar-productos)
   (displayln "\n=== Productos ===")
   (for-each
@@ -21,42 +33,87 @@
 (define (buscar-producto opcion)
   (findf (lambda (p) (= (first p) opcion)) productos))
 
-  
+;; =========================
+;; Lógica de compra
+;; =========================
 (define (comprar)
-  (with-handlers ([exn:fail?
-                   (lambda (e)
-                     (displayln (string-append "⚠ Error: " (exn-message e)))
-                     (menu))])
+  (with-handlers
+      ([exn:entrada-invalida?
+        (lambda (e)
+          (displayln (string-append "❌ " (exn-message e)))
+          (menu))]
+
+       [exn:producto-no-existe?
+        (lambda (e)
+          (displayln (string-append "❌ " (exn-message e)))
+          (menu))]
+
+       [exn:pago-insuficiente?
+        (lambda (e)
+          (printf "❌ Pago insuficiente. Te faltan $~a\n"
+                  (exn:pago-insuficiente-faltante e))
+          (menu))])
     
     (mostrar-productos)
+    
     (display "Seleccione producto: ")
     (define opcion (read))
     
+    ;; Validar que sea número
+    (unless (number? opcion)
+      (raise
+       (exn:entrada-invalida
+        "Debe ingresar un número válido"
+        (current-continuation-marks))))
+    
     (define producto (buscar-producto opcion))
     
+    ;; Validar existencia
     (when (not producto)
-      (error "Producto no existe"))
+      (raise
+       (exn:producto-no-existe
+        "El producto no existe"
+        (current-continuation-marks))))
     
     (define precio (third producto))
     (define nombre (second producto))
-
+    
+    (printf "Precio de ~a: $~a\n" nombre precio)
+    
+    (display "Ingrese dinero: ")
+    (define dinero (read))
+    
+    ;; Validar que sea número
+    (unless (number? dinero)
+      (raise
+       (exn:entrada-invalida
+        "Debe ingresar un monto numérico válido"
+        (current-continuation-marks))))
+    
+    ;; Validar dinero suficiente
+    (when (< dinero precio)
+      (raise
+       (exn:pago-insuficiente
+        "Dinero insuficiente"
+        (current-continuation-marks)
+        (- precio dinero))))
+    
+    ;; Simulación
     (display "Obteniendo producto")
-    (display ".")
-    (sleep 1)
-    (display ".")
-    (sleep 1)
-    (display ".")
-    (sleep 1)
+    (for ([i 3])
+      (display ".")
+      (sleep 1))
     
-    (displayln "Producto trabado en cajuela")
-
+    (displayln "\n✅ Producto entregado")
+    (printf "Vuelto: $~a\n" (- dinero precio))
     
-    ))
+    (menu)))
 
+;; =========================
+;; Menú
+;; =========================
 (define (menu)
   (displayln "\n=== Máquina Expendedora UCN ===")
-    
-    (comprar)
-  )
-    
+  (comprar))
+
 (menu)
